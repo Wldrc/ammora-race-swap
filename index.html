@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Race Swap — Ammora Builder on GIWA Sepolia</title>
+<meta name="description" content="Minimal ETH → tAMM swap on GIWA Sepolia testnet, built with @ammora-protocol/sdk 0.3.9 (Ammora Season 2 Builder).">
+<style>
+  :root { color-scheme: dark; --bg:#0d1117; --card:#161b22; --line:#30363d; --txt:#e6edf3; --mut:#8b949e; --acc:#2f81f7; --ok:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--txt); font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
+  .wrap { max-width:680px; margin:0 auto; padding:28px 16px 48px; }
+  h1 { font-size:24px; margin:0 0 4px; }
+  .sub { color:var(--mut); margin:0 0 20px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px 18px; margin:0 0 14px; }
+  .card h2 { font-size:15px; margin:0 0 10px; }
+  .row { display:flex; justify-content:space-between; gap:12px; padding:5px 0; border-bottom:1px solid var(--line); }
+  .row:last-child { border-bottom:0; }
+  .row .k { color:var(--mut); }
+  .row .v { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:13px; text-align:right; word-break:break-all; }
+  .mono { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:13px; word-break:break-all; }
+  label { display:block; color:var(--mut); font-size:13px; margin:10px 0 4px; }
+  input[type=text], input[type=number] { width:100%; background:var(--bg); border:1px solid var(--line); color:var(--txt); border-radius:8px; padding:10px 12px; font-size:16px; }
+  button { background:var(--acc); color:#fff; border:0; border-radius:8px; padding:11px 18px; font-size:15px; cursor:pointer; }
+  button:disabled { opacity:.45; cursor:not-allowed; }
+  button.ghost { background:transparent; border:1px solid var(--line); color:var(--txt); }
+  .btnrow { display:flex; gap:10px; margin-top:14px; flex-wrap:wrap; }
+  .ok { color:var(--ok); } .warn { color:var(--warn); } .bad { color:var(--bad); }
+  .status { min-height:22px; margin-top:10px; font-size:14px; }
+  a { color:var(--acc); }
+  .foot { color:var(--mut); font-size:13px; }
+  .pill { display:inline-block; border:1px solid var(--line); border-radius:999px; padding:2px 10px; font-size:12px; color:var(--mut); margin:0 6px 6px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Race Swap</h1>
+  <p class="sub">Minimal ETH → $tAMM swap on <b>GIWA Sepolia</b> (chain 91342), built with <b>@ammora-protocol/sdk 0.3.9</b> · Ammora Season 2 Builder submission · Testnet only, no real funds.</p>
+
+  <div class="card">
+    <h2>Pool — verified by the SDK</h2>
+    <div class="row"><span class="k">Pool</span><span class="v" id="poolAddr">…</span></div>
+    <div class="row"><span class="k">Pair</span><span class="v" id="pair">…</span></div>
+    <div class="row"><span class="k">Fee</span><span class="v" id="fee">…</span></div>
+    <div class="row"><span class="k">Reserves</span><span class="v" id="reserves">…</span></div>
+    <div class="row"><span class="k">SDK deployment check</span><span class="v" id="verify">checking…</span></div>
+    <div class="row"><span class="k">V5 factory</span><span class="v">0xC0Fc168DeD39DA53C11D5082D9303216C3c37375</span></div>
+  </div>
+
+  <div class="card">
+    <h2>Swap ETH → $tAMM</h2>
+    <label for="amount">You pay (ETH)</label>
+    <input id="amount" type="number" min="0" step="0.0001" value="0.0004">
+    <div class="row" style="margin-top:10px"><span class="k">You receive (quoted)</span><span class="v" id="quote">…</span></div>
+    <div class="row"><span class="k">Minimum out (0.5% slippage)</span><span class="v" id="minOut">…</span></div>
+    <div class="row"><span class="k">Price impact</span><span class="v" id="impact">…</span></div>
+    <div class="btnrow">
+      <button id="connectBtn">Connect wallet</button>
+      <button id="swapBtn" disabled>Swap</button>
+    </div>
+    <div class="status" id="status"></div>
+    <div id="txOut"></div>
+  </div>
+
+  <div class="card">
+    <h2>Your wallet</h2>
+    <div class="row"><span class="k">Address</span><span class="v" id="acct">not connected</span></div>
+    <div class="row"><span class="k">ETH</span><span class="v" id="balEth">—</span></div>
+    <div class="row"><span class="k">WETH</span><span class="v" id="balWeth">—</span></div>
+    <div class="row"><span class="k">$tAMM</span><span class="v" id="balTamm">—</span></div>
+  </div>
+
+  <div class="card">
+    <h2>How it works</h2>
+    <p class="foot">Quotes come from the live pool (<span class="mono">quoteExactIn</span> via the SDK's <span class="mono">arlV5PoolAbi</span>). Swaps are one native-ETH transaction to Ammora's V5 native router — calldata built by the SDK (<span class="mono">buildV3NativePoolExactInput</span>, <span class="mono">swapPoolExactInNative</span>). The V5 deployment manifest (factory, implementation, fee controller, fee vault, token policy, fee policy) is pinned by runtime code hash and re-verified on-chain by the SDK (<span class="mono">ArlV5FactoryClient.verifyDeploymentAtBlock / verifyPoolAtBlock</span>) on every load. No private key is ever stored or sent anywhere; your wallet signs everything.</p>
+    <p>
+      <span class="pill">SDK @ammora-protocol/sdk 0.3.9</span>
+      <span class="pill">GIWA Sepolia · 91342</span>
+      <span class="pill">Pool 0x1EF92A…BCf8</span>
+    </p>
+    <p class="foot">
+      <a href="https://docs.ammora.org" target="_blank" rel="noopener">Ammora docs</a> ·
+      <a href="https://sepolia-explorer.giwa.io/address/0x1EF92A6a9BB4bBed2b385Dd5E688F88e7965BCf8" target="_blank" rel="noopener">Pool on GIWA explorer</a> ·
+      <a href="https://ammora.org" target="_blank" rel="noopener">ammora.org</a>
+    </p>
+  </div>
+</div>
+<script src="./bundle.js"></script>
+</body>
+</html>
